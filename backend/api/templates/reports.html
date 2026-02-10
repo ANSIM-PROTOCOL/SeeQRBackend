@@ -1,0 +1,2103 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>See QR Code</title>
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="{% static 'favicon.ico' %}">
+
+  <!-- Tailwind (after.html 유지) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- D3 (before.html 그래프 유지) -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+    :root {
+      --bg-deep: #070b12;
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-elev: #0f172a;
+      --text-main: #e9eef7;
+      --text-sub: #9fb0c7;
+      --accent: #39d2a6;
+      --accent-blue: #53a3ff;
+
+      --risk-bg: rgba(255, 107, 107, 0.12);
+      --risk-text: #ff6b6b;
+      --warn-bg: rgba(245, 158, 11, 0.14);
+      --warn-text: #f59e0b;
+      --safe-bg: rgba(34, 197, 94, 0.14);
+      --safe-text: #22c55e;
+
+      --border-color: rgba(148, 163, 184, 0.16);
+      --card-inner-bg: rgba(15, 23, 42, 0.75);
+
+      --graph-bg: #0b1118;
+      --graph-panel: rgba(15, 23, 42, 0.95);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.12), transparent 45%),
+                  radial-gradient(circle at 80% 0%, rgba(34, 197, 94, 0.12), transparent 40%),
+                  radial-gradient(circle at 10% 90%, rgba(244, 114, 182, 0.1), transparent 45%),
+                  var(--bg-deep);
+      color: var(--text-main);
+      font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+      opacity: 0.4;
+      z-index: 0;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 10px; }
+
+    .android-container {
+      width: 100%;
+      max-width: 520px;
+      background: var(--bg-card);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+      backdrop-filter: blur(14px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .header {
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      background: rgba(8, 12, 20, 0.9);
+      backdrop-filter: blur(16px);
+      z-index: 10;
+    }
+
+    .header.is-compact {
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.36);
+      transition: opacity 0.25s ease, transform 0.25s ease, height 0.25s ease, width 0.25s ease;
+    }
+
+    .brand-text {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      align-items: center;
+      text-align: center;
+      transition: opacity 0.25s ease, transform 0.25s ease, max-height 0.25s ease, margin 0.25s ease;
+    }
+
+    .header.is-compact .brand-logo {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.9);
+      height: 0;
+      width: 0;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .header.is-compact .brand-text {
+      opacity: 0;
+      transform: translateY(-6px);
+      max-height: 0;
+      margin: 0;
+      pointer-events: none;
+    }
+
+    .brand-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 1.2rem;
+      letter-spacing: 0.4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-sub {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-search {
+      width: 100%;
+      margin-top: 12px;
+      transition: margin 0.25s ease;
+    }
+
+    .header.is-compact .header-search {
+      margin-top: 0;
+    }
+
+    .header-search-form {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      width: 100%;
+      height: 46px;
+    }
+
+    .header-search-field {
+      position: relative;
+      flex: 1;
+    }
+
+    .header-search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: rgba(148, 163, 184, 0.9);
+      pointer-events: none;
+    }
+
+    .header-search-input {
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 14px 0 0 14px;
+      padding: 0 12px 0 42px;
+      color: var(--text-main);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .header-search-input::placeholder {
+      color: rgba(148, 163, 184, 0.7);
+    }
+
+    .header-search-input:focus {
+      border-color: rgba(83, 163, 255, 0.65);
+      box-shadow: 0 0 0 3px rgba(83, 163, 255, 0.15);
+    }
+
+    .header-search-btn {
+      width: 52px;
+      border-radius: 0 14px 14px 0;
+      border: 1px solid rgba(83, 163, 255, 0.6);
+      background: linear-gradient(135deg, rgba(83, 163, 255, 0.9), rgba(57, 210, 166, 0.85));
+      color: #041017;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+      box-shadow: 0 8px 18px rgba(57, 210, 166, 0.2);
+    }
+
+    .header-search-btn:active {
+      transform: scale(0.96);
+    }
+
+    .content {
+      padding: 22px 18px 32px;
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+
+    .status-banner {
+      display: none;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      margin: 14px 18px 0;
+      border-radius: 14px;
+      background: linear-gradient(120deg, rgba(57, 210, 166, 0.12), rgba(83, 163, 255, 0.08));
+      border: 1px solid rgba(57, 210, 166, 0.35);
+    }
+
+    .status-banner.is-visible { display: flex; }
+    .status-title { font-size: 0.9rem; font-weight: 600; }
+    .status-sub { font-size: 0.75rem; color: var(--text-sub); margin-top: 2px; }
+
+    .section { margin-bottom: 18px; }
+
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.2px;
+    }
+
+    .section-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--text-sub);
+    }
+
+    .section-chip-btn {
+      border: 1px solid rgba(83, 163, 255, 0.45);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text-sub);
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border 0.2s ease, color 0.2s ease;
+    }
+
+    .section-chip-btn:hover {
+      color: var(--text-main);
+      border-color: rgba(83, 163, 255, 0.75);
+    }
+
+    .section-chip-btn:active {
+      transform: scale(0.98);
+    }
+
+    .section-body { position: relative; }
+
+    .section-loading {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      background: rgba(8, 12, 20, 0.65);
+      backdrop-filter: blur(6px);
+      z-index: 2;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .section-card.is-loading .section-loading { display: flex; }
+    .section-card.is-loading .section-body { opacity: 0.3; filter: blur(1px); }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      aspect-ratio: 1 / 1;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      border: 3px solid rgba(233, 238, 247, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .loading-text {
+      font-size: 0.84rem;
+      color: var(--text-sub);
+    }
+
+    .info-card {
+      background-color: var(--card-inner-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .info-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .url-classification {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+      color: var(--text-sub);
+      font-size: 0.75rem;
+    }
+
+    .url-text {
+      color: var(--accent-blue);
+      text-decoration: none;
+      word-break: break-all;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      cursor: default;
+      display: block;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0.1px;
+    }
+
+    .site-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    }
+
+    .site-badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
+
+    .site-name {
+      color: var(--text-main);
+      font-size: 0.9rem;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .safety-info-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 14px 16px;
+      border-radius: 14px;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .safety-info-container.is-risk {
+      background-color: var(--risk-bg);
+      color: var(--risk-text);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .safety-info-container.is-warn {
+      background-color: var(--warn-bg);
+      color: var(--warn-text);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .safety-info-container.is-safe {
+      background-color: var(--safe-bg);
+      color: var(--safe-text);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+
+    .safety-icon-box {
+      width: 28px;
+      height: 28px;
+      margin-right: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .safety-score-box { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+    .safety-score-main { font-size: 1.7rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+    .safety-score-total { font-size: 1rem; color: #6b7280; }
+
+    .safety-tag {
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .safety-tag-safe {
+      color: var(--safe-text);
+      border-color: rgba(74, 222, 128, 0.4);
+      background: rgba(74, 222, 128, 0.08);
+    }
+
+    .safety-tag-warn {
+      color: var(--warn-text);
+      border-color: rgba(251, 191, 36, 0.4);
+      background: rgba(251, 191, 36, 0.08);
+    }
+
+    .safety-tag-risk {
+      color: var(--risk-text);
+      border-color: rgba(248, 113, 113, 0.4);
+      background: rgba(248, 113, 113, 0.08);
+    }
+
+    .reason-container {
+      background-color: var(--card-inner-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .reason-text {
+      line-height: 1.7;
+      font-size: 0.95rem;
+      color: #d1d5db;
+      word-break: break-word;
+    }
+
+    .reason-text a {
+      color: var(--accent-blue);
+      text-decoration: underline;
+    }
+
+    .screenshot-container {
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      background-color: var(--card-inner-bg);
+      min-height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screenshot-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .screenshot-empty {
+      padding: 14px 16px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      text-align: center;
+    }
+
+    .graph-container {
+      width: 100%;
+      height: clamp(320px, 55vh, 560px);
+      background-color: #0d1117;
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .graph-container:fullscreen {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+    }
+
+    .graph-container:fullscreen .graph-toolbar {
+      top: 16px;
+      right: 16px;
+      width: auto;
+      align-self: flex-start;
+    }
+
+    .graph-container:fullscreen .graph-btn {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+    }
+
+    .graph-wrap {
+      position: absolute;
+      inset: 0;
+      background: var(--graph-bg);
+    }
+
+    .graph-toolbar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 4;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(10, 18, 28, 0.78);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 6px;
+      backdrop-filter: blur(8px);
+    }
+
+    .graph-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      font-size: 1.05rem;
+      line-height: 1;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .graph-btn:active {
+      transform: scale(0.95);
+    }
+
+    .graph-mobile-hint {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      z-index: 4;
+      padding: 6px 9px;
+      border-radius: 9px;
+      font-size: 0.68rem;
+      color: #d1d5db;
+      background: rgba(10, 18, 28, 0.78);
+      border: 1px solid var(--border-color);
+      display: none;
+      pointer-events: none;
+    }
+    .graph-wrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    .graph-node .node-outer,
+    .graph-node .node-inner,
+    .graph-node .node-caption {
+      transition: all 0.22s ease;
+    }
+
+    .graph-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      background: rgba(8, 12, 20, 0.65);
+      backdrop-filter: blur(6px);
+      z-index: 3;
+    }
+
+    .graph-container.is-loading .graph-overlay { display: flex; }
+
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--graph-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      max-width: 420px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      display: none;
+      z-index: 5;
+    }
+    .tooltip .t-title { font-weight: 700; margin-bottom: 6px; }
+    .tooltip .t-sub { color: var(--text-sub); font-size: 11px; line-height: 1.35; }
+
+    .bottom-hint-container {
+      text-align: center;
+      margin-top: 12px;
+    }
+    .click-hint {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      font-style: italic;
+      margin: 0;
+    }
+    .inquiry-container {
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-bottom: 0;
+    }
+    .inquiry-link {
+      color: var(--accent-blue);
+      text-decoration: underline;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+
+    .report-footer {
+      display: block;
+      border-top: 1px solid var(--border-color);
+      padding: 16px 18px 24px;
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 0.82rem;
+      margin-top: 4px;
+    }
+
+    .inquiry-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 520px;
+      padding: 14px 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(83, 163, 255, 0.55);
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--text-main);
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.15s ease, border 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 20px rgba(83, 163, 255, 0.15);
+    }
+
+    .inquiry-btn:active {
+      transform: scale(0.98);
+    }
+
+    .preview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 12, 20, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 60;
+      padding: 24px;
+      backdrop-filter: blur(6px);
+    }
+
+    .preview-modal.is-open {
+      display: flex;
+    }
+
+    .preview-modal-card {
+      width: min(1100px, 96vw);
+      max-height: 92vh;
+      background: #0b1118;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .preview-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+    }
+
+    .preview-modal-close {
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 6px 10px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border 0.2s ease;
+    }
+
+    .preview-modal-close:active {
+      transform: scale(0.97);
+    }
+
+    .preview-modal-image {
+      width: 100%;
+      max-height: 78vh;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #0b1118;
+    }
+
+    @media (min-width: 768px) {
+      body {
+        align-items: flex-start;
+        padding: 28px 24px 48px;
+      }
+
+      .android-container {
+        max-width: 980px;
+        width: min(980px, 100%);
+        border-radius: 22px;
+        min-height: auto;
+        box-shadow: 0 24px 60px rgba(3, 7, 18, 0.45);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .header {
+        border-radius: 22px 22px 0 0;
+      }
+
+      .header-search {
+        max-width: 620px;
+      }
+
+      .content {
+        padding: 28px 24px 40px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 10px;
+        align-content: start;
+      }
+
+      .section {
+        margin-bottom: 0;
+      }
+
+      .status-banner {
+        margin: 18px 24px 0;
+        border-radius: 16px;
+      }
+
+      .graph-container {
+        height: clamp(420px, 48vh, 680px);
+      }
+
+      .bottom-hint-container .inquiry-container {
+        display: none;
+      }
+
+      .report-footer {
+        display: block;
+      }
+    }
+
+    @media (min-width: 1100px) {
+      body {
+        padding: 36px 32px 60px;
+      }
+
+      .android-container {
+        max-width: 1180px;
+        width: min(1180px, 100%);
+      }
+
+      .header-search {
+        max-width: none;
+        width: 100%;
+      }
+
+      .content {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 10px;
+      }
+
+      .report-footer {
+        padding: 18px 24px 28px;
+      }
+
+      .section-card[data-section="graph"] .graph-container {
+        height: clamp(520px, 62vh, 820px);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .header {
+        padding: 14px 16px;
+      }
+
+      .brand-logo {
+        width: 36px;
+        height: 36px;
+      }
+
+      .brand-title {
+        font-size: 0.98rem;
+      }
+
+      .brand-sub {
+        font-size: 0.68rem;
+      }
+
+      .header-search {
+        margin-top: 10px;
+      }
+
+      .header-search-form {
+        height: 42px;
+      }
+
+      .graph-container {
+        height: clamp(360px, 62vh, 640px);
+      }
+
+      .graph-toolbar {
+        top: auto;
+        bottom: 10px;
+        right: 10px;
+      }
+
+      .graph-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 1.15rem;
+      }
+
+      .graph-mobile-hint {
+        display: block;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      .tooltip {
+        display: none !important;
+      }
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body>
+  <div class="android-container">
+    <header class="header">
+      <div class="brand">
+        <img src="{% static 'logo.png' %}" alt="See QR Report logo" class="brand-logo" />
+        <div class="brand-text">
+          <div id="header-site-name" class="brand-title">See QR Report</div>
+          <div id="header-site-url" class="brand-sub">QR 큐싱 대응 실시간 AI 분석 보고서</div>
+        </div>
+        <div class="header-search">
+          <form class="header-search-form" action="/api/report/" method="get">
+            <div class="header-search-field">
+              <svg class="header-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path>
+                <path d="M21 21l-4.35-4.35"></path>
+              </svg>
+              <input
+                type="text"
+                name="url"
+                class="header-search-input"
+                placeholder="URL을 입력하거나 붙여넣으세요"
+                value="{{ input_payload.url|default:'' }}"
+                required
+                autocomplete="off"
+              />
+            </div>
+            <button type="submit" class="header-search-btn" aria-label="URL 검색">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M11 5l7 7-7 7"></path>
+                <path d="M18 12H4"></path>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <div id="status-banner" class="status-banner">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>
+        <div class="status-title">AI를 통해 사이트를 분석 중입니다. 잠시만 기다려주세요...</div>
+        <div id="status-sub" class="status-sub">분석 상태: 대기 중</div>
+      </div>
+    </div>
+
+    <main class="content">
+      {% if api_error %}
+        <section class="section">
+          <div class="section-card" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(127, 29, 29, 0.2);">
+            <div class="section-header">
+              <div class="section-title">분석 상태</div>
+            </div>
+            <div class="section-body">
+              <div class="reason-text">{{ api_error }}</div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="section">
+        <div class="section-card" data-section="url">
+          <div class="section-header">
+            <div class="section-title">URL 정보</div>
+            <div class="section-chip">
+              <span>분류</span>
+              <span id="display-threat-label" class="safety-tag"></span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="info-card">
+              <div class="info-header">
+                <span class="url-classification">원본 URL</span>
+              </div>
+              <a id="display-url" href="javascript:void(0)" class="url-text"></a>
+              <div id="site-row" class="site-line" style="display:none;">
+                <span class="site-badge">사이트</span>
+                <span id="display-site-name" class="site-name"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-card" data-section="preview">
+          <div class="section-header">
+            <div class="section-title">미리보기</div>
+            <button type="button" id="preview-zoom-btn" class="section-chip-btn" aria-label="미리보기 확대">
+              확대하기
+              <span aria-hidden="true">⛶</span>
+            </button>
+          </div>
+          <div class="section-body">
+            <div class="screenshot-container">
+              <img id="screenshot-img" alt="사이트 스크린샷" class="screenshot-img" />
+              <div id="screenshot-empty" class="screenshot-empty">스크린샷을 불러오는 중입니다.</div>
+            </div>
+          </div>
+          <div class="section-loading">
+            <div class="spinner"></div>
+            <div class="loading-text">AI를 통해 사이트를 분석 중입니다. 잠시만 기다려주세요...</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-card" data-section="risk">
+          <div class="section-header">
+            <div class="section-title">위험도</div>
+            <div class="section-chip">AI 분석 위험도 점수</div>
+          </div>
+          <div class="section-body">
+            <div id="safety-badge" class="safety-info-container">
+              <div id="safety-icon-container" class="safety-icon-box"></div>
+              <div class="safety-score-box">
+                <span id="display-score" class="safety-score-main"></span>
+                <span class="safety-score-total">/ 100</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-card" data-section="detail">
+          <div class="section-header">
+            <div class="section-title">상세 보고</div>
+            <div class="section-chip">AI 분석 근거</div>
+          </div>
+          <div class="section-body">
+            <div class="reason-container">
+              <div id="display-reason" class="reason-text"></div>
+            </div>
+          </div>
+          <div class="section-loading">
+            <div class="spinner"></div>
+            <div class="loading-text">AI를 통해 사이트를 분석 중입니다. 잠시만 기다려주세요...</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-card" data-section="graph">
+          <div class="section-header">
+            <div class="section-title">네트워크 분석 그래프</div>
+            <div class="section-chip">링크 확산 경로</div>
+          </div>
+          <div class="section-body">
+            <div class="graph-container" id="graphContainer">
+              <div class="graph-toolbar" id="graphToolbar">
+                <button type="button" class="graph-btn" id="graphZoomIn" aria-label="그래프 확대">+</button>
+                <button type="button" class="graph-btn" id="graphZoomOut" aria-label="그래프 축소">-</button>
+                <button type="button" class="graph-btn" id="graphReset" aria-label="그래프 초기화">↺</button>
+                <button type="button" class="graph-btn" id="graphFullscreen" aria-label="그래프 전체 화면">⛶</button>
+              </div>
+              <div class="graph-mobile-hint">탭/핀치로 탐색 · 버튼으로 확대/축소</div>
+              <div class="graph-wrap" id="graphWrap">
+                <svg id="graphSvg" aria-label="Service graph"></svg>
+                <div id="tooltip" class="tooltip"></div>
+              </div>
+              <div class="graph-overlay">
+                <div class="spinner"></div>
+                <div class="loading-text">AI를 통해 사이트를 분석 중입니다. 잠시만 기다려주세요...</div>
+              </div>
+            </div>
+
+            <div class="bottom-hint-container">
+              <p class="click-hint">노드를 탭/클릭하여 상세 정보를 확인하고, 핀치로 확대/축소할 수 있습니다.</p>
+            </div>
+          </div>
+          <div class="section-loading">
+            <div class="spinner"></div>
+            <div class="loading-text">AI를 통해 사이트를 분석 중입니다. 잠시만 기다려주세요...</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="report-footer">
+      <a href="/api/inquire/?url={{ input_payload.url|urlencode }}" class="inquiry-btn">문의하기</a>
+    </footer>
+  </div>
+
+  <div id="preview-modal" class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+    <div class="preview-modal-card">
+      <div class="preview-modal-header">
+        <div id="preview-modal-title">웹 페이지 미리보기</div>
+        <button type="button" id="preview-modal-close" class="preview-modal-close" aria-label="미리보기 닫기">닫기</button>
+      </div>
+      <img id="preview-modal-image" class="preview-modal-image" alt="확대된 웹 페이지 미리보기" />
+    </div>
+  </div>
+
+  {# 입력/응답 JSON 주입 (권장: json_script) #}
+  {{ input_payload|json_script:"input-payload" }}
+  {{ report_json|json_script:"report-data" }}
+  {{ screenshot|json_script:"screenshot-url" }}
+  {{ is_processing|json_script:"is-processing" }}
+  {{ job_status|json_script:"job-status" }}
+
+  <script>
+    /* -----------------------------
+      0) 아이콘 (after.html 유지)
+    ----------------------------- */
+    const icons = {
+      risk: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.25 2.25h7.5l6 6v7.5l-6 6h-7.5l-6-6v-7.5l6-6z"></path><path d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5"></path></svg>`,
+      warn: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+      safe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>`
+    };
+
+    /* -----------------------------
+      1) 안전한 문자열/링크 처리 (before.html의 안전 처리 개념 유지)
+    ----------------------------- */
+    function escapeText(s){
+      return (s ?? "").toString()
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#39;");
+    }
+
+    function safeUrlForHref(raw){
+      try{
+        const u = new URL(raw);
+        if (!["http:", "https:"].includes(u.protocol)) return null;
+        return u.toString();
+      }catch{
+        return null;
+      }
+    }
+
+    // 제한적 마크다운 링크([t](url))만 안전 링크로 변환 + 나머지는 escape
+    function renderReasonAsSafeHtml(reason){
+      const text = (reason ?? "").toString();
+      const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let out = "";
+      let last = 0;
+
+      for (const m of text.matchAll(re)){
+        out += escapeText(text.slice(last, m.index));
+        const label = m[1];
+        const href = safeUrlForHref(m[2]);
+        if (href){
+          out += `<a href="${escapeText(href)}" target="_blank" rel="noopener noreferrer">${escapeText(label)}</a>`;
+        }else{
+          out += escapeText(m[0]);
+        }
+        last = m.index + m[0].length;
+      }
+      out += escapeText(text.slice(last));
+      return out.replaceAll("\n","<br/>");
+    }
+
+    function shortenUrl(raw){
+      try{
+        const u = new URL(raw);
+        const path = (u.pathname || "/").replace(/\/+$/,"") || "/";
+        const host = u.hostname.replace(/^www\./,"");
+        return `${host}${path}`;
+      }catch{
+        return raw;
+      }
+    }
+
+
+    /* -----------------------------
+      헤더 스크롤 축소/복원
+    ----------------------------- */
+    const headerEl = document.querySelector(".header");
+    const contentEl = document.querySelector(".content");
+    let lastHeaderState = null;
+
+    function getScrollTop(){
+      if (contentEl && contentEl.scrollHeight > contentEl.clientHeight){
+        return contentEl.scrollTop;
+      }
+      return window.pageYOffset || document.documentElement.scrollTop || 0;
+    }
+
+    function updateHeaderCompact(){
+      if (!headerEl) return;
+      const shouldCompact = getScrollTop() > 20;
+      if (shouldCompact === lastHeaderState) return;
+      headerEl.classList.toggle("is-compact", shouldCompact);
+      lastHeaderState = shouldCompact;
+    }
+
+    if (contentEl){
+      contentEl.addEventListener("scroll", () => {
+        window.requestAnimationFrame(updateHeaderCompact);
+      });
+    }
+    window.addEventListener("scroll", () => {
+      window.requestAnimationFrame(updateHeaderCompact);
+    });
+    updateHeaderCompact();
+
+    /* -----------------------------
+      2) threat_score(1~3) → 상태 매핑
+    ----------------------------- */
+    function threatScoreToStatus(threatScore){
+      if (threatScore === 1) return { key:"safe", text:"안전", iconKey:"safe" };
+      if (threatScore === 2) return { key:"warn", text:"주의", iconKey:"warn" };
+      return { key:"risk", text:"위험", iconKey:"risk" };
+    }
+
+    // probability 기반(노드별) 위험도: 요청 기준(<=20 safe, <75 warn, else risk)
+    function probabilityToStatus(prob){
+      const p = Number(prob ?? 0);
+      if (p <= 20) return { key:"safe", text:"안전", iconKey:"safe" };
+      if (p < 75) return { key:"warn", text:"주의", iconKey:"warn" };
+      return { key:"risk", text:"위험", iconKey:"risk" };
+    }
+
+    /* -----------------------------
+      3) after.html UI 갱신
+    ----------------------------- */
+    function setBadge(statusKey){
+      const badge = document.getElementById("safety-badge");
+      const iconContainer = document.getElementById("safety-icon-container");
+      const scoreText = document.getElementById("display-score");
+
+      if (statusKey === "safe"){
+        badge.className = "safety-info-container is-safe";
+        iconContainer.innerHTML = icons.safe;
+        scoreText.style.color = "var(--safe-text)";
+      } else if (statusKey === "warn"){
+        badge.className = "safety-info-container is-warn";
+        iconContainer.innerHTML = icons.warn;
+        scoreText.style.color = "var(--warn-text)";
+      } else {
+        badge.className = "safety-info-container is-risk";
+        iconContainer.innerHTML = icons.risk;
+        scoreText.style.color = "var(--risk-text)";
+      }
+    }
+
+    function updateTopUI({ url, site_name, probability, threatLabelText, reasonHtml, threatLabelKey }){
+      const urlEl = document.getElementById("display-url");
+      urlEl.textContent = url || "";
+      urlEl.href = url || "javascript:void(0)";
+
+      const siteRow = document.getElementById("site-row");
+      const siteEl = document.getElementById("display-site-name");
+      if (site_name && String(site_name).trim()){
+        if (siteRow) siteRow.style.display = "flex";
+        siteEl.textContent = site_name;
+      } else {
+        if (siteRow) siteRow.style.display = "none";
+        siteEl.textContent = "";
+      }
+
+      const headerTitleEl = document.getElementById("header-site-name");
+      const headerUrlEl = document.getElementById("header-site-url");
+      /*
+      if (headerTitleEl) {
+         const headerSiteName = (site_name && String(site_name).trim())
+           ? String(site_name).trim()
+           : (inputPayload.site_name || "See QR Code");
+         headerTitleEl.textContent = headerSiteName;
+      }
+      if (headerUrlEl) {
+        const headerUrl = (url && String(url).trim())
+          ? String(url).trim()
+          : (inputPayload.url || "QR 큐싱 대응 실시간 분석");
+        headerUrlEl.textContent = headerUrl;
+        headerUrlEl.title = headerUrl;
+      }
+      */
+
+      document.getElementById("display-score").textContent = String(Math.round(Number(probability ?? 0)));
+      const threatLabelEl = document.getElementById("display-threat-label");
+      threatLabelEl.textContent = threatLabelText || "";
+      threatLabelEl.className = `safety-tag ${threatLabelKey ? `safety-tag-${threatLabelKey}` : ""}`.trim();
+
+      document.getElementById("display-reason").innerHTML = reasonHtml || "";
+    }
+
+    /* -----------------------------
+      4) JSON 정규화 (before.html의 포맷 호환 개념 유지)
+      - 최신: depth에 "0" 포함, links→childs
+    ----------------------------- */
+    function normalizeReport(json){
+      if (!json || typeof json !== "object") throw new Error("JSON root must be an object.");
+      const report = {
+        url: json.url ?? "",
+        site_name: json.site_name ?? "",
+        threat_type: json.threat_type ?? "",
+        description: json.description ?? "",
+        probability: Number(json.probability ?? 0),
+        reason: json.reason ?? "",
+        depth: (json.depth && typeof json.depth === "object") ? json.depth : {}
+      };
+
+      const outDepth = {};
+      for (const [k, v] of Object.entries(report.depth)){
+        const lvl = String(k);
+        if (!Array.isArray(v)) continue;
+
+        outDepth[lvl] = v
+          .filter(x => x && typeof x === "object")
+          .map(x => {
+            const rawChildren = Array.isArray(x.childs) ? x.childs
+                              : (Array.isArray(x.links) ? x.links : []);
+
+            const childs = rawChildren
+              .filter(l => l && typeof l === "object")
+              .map(l => ({
+                url: l.url ?? "",
+                probability: Number(l.probability ?? 0),
+              }))
+              .filter(l => l.url);
+
+            return {
+              url: x.url ?? "",
+              parent: x.parent ?? null,
+              site_name: x.site_name ?? "",
+              threat_type: x.threat_type ?? "",
+              description: x.description ?? "",
+              probability: Number(x.probability ?? 0),
+              reason: x.reason ?? "",
+              childs,
+            };
+          })
+          .filter(x => x.url);
+      }
+      report.depth = outDepth;
+      return report;
+    }
+
+    /* -----------------------------
+      5) depth 트리 → 그래프 변환 (before.html의 buildGraph를 축약)
+    ----------------------------- */
+    function fnv1a(str){
+      let h = 0x811c9dc5;
+      for (let i=0;i<str.length;i++){
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+      }
+      return (h >>> 0).toString(16);
+    }
+
+    function buildGraph(report){
+      const nodesById = new Map();
+      const links = [];
+      const edgeKey = new Set();
+
+      const rootKey = report.url || "root";
+      const rootId = "ROOT_" + fnv1a(rootKey);
+
+      function upsertNode({url, probability=0, reason="", description="", site_name="", threat_type="", depth=0, parent=null, isRoot=false, isStub=false}){
+        const isSameAsRoot = !!(rootKey && url && url === rootKey);
+        const nodeId = (isRoot || isSameAsRoot) ? rootId : ("N_" + fnv1a(url));
+        const ex = nodesById.get(nodeId);
+
+        if (!ex){
+          const n = {
+            id: nodeId,
+            url,
+            probability: Number(probability ?? 0),
+            reason: reason ?? "",
+            description: description ?? "",
+            site_name: site_name ?? "",
+            threat_type: threat_type ?? "",
+            depth: Number(depth ?? 0),
+            parent: parent ?? null,
+            isRoot: !!(isRoot || isSameAsRoot),
+            isStub: !!isStub,
+          };
+          nodesById.set(nodeId, n);
+          return n;
+        }
+
+        ex.url = ex.url || url;
+        ex.probability = Math.max(Number(ex.probability ?? 0), Number(probability ?? 0));
+        if (!ex.reason && reason) ex.reason = reason;
+        if (!ex.description && description) ex.description = description;
+        if (!ex.site_name && site_name) ex.site_name = site_name;
+        if (!ex.threat_type && threat_type) ex.threat_type = threat_type;
+        if ((ex.depth ?? 9999) > Number(depth ?? ex.depth ?? 0)) ex.depth = Number(depth ?? 0);
+        if (!ex.parent && parent) ex.parent = parent;
+        ex.isRoot = ex.isRoot || isSameAsRoot || !!isRoot;
+        ex.isStub = ex.isStub && !(ex.reason || ex.description || ex.site_name || ex.threat_type);
+        return ex;
+      }
+
+      function addEdge(sourceId, targetId, dashed=false, kind="parent", depth=0){
+        if (sourceId === targetId) return;
+        const key = `${sourceId}->${targetId}::${kind}`;
+        if (edgeKey.has(key)) return;
+        edgeKey.add(key);
+        links.push({ source: sourceId, target: targetId, dashed, kind, depth: Number(depth ?? 0) });
+      }
+
+      // ROOT
+      upsertNode({
+        url: report.url,
+        probability: report.probability,
+        reason: report.reason,
+        description: report.description,
+        site_name: report.site_name,
+        threat_type: report.threat_type,
+        depth: 0,
+        parent: null,
+        isRoot: true,
+        isStub: false
+      });
+
+      // depth entries
+      const entries = Object.entries(report.depth || {})
+        .map(([k,v]) => [Number(k), v])
+        .filter(([k,v]) => Number.isFinite(k) && Array.isArray(v))
+        .sort((a,b) => a[0]-b[0]);
+
+      for (const [depthLevel, arr] of entries){
+        for (const item of arr){
+          const child = upsertNode({
+            url: item.url,
+            probability: item.probability,
+            reason: item.reason,
+            description: item.description,
+            site_name: item.site_name,
+            threat_type: item.threat_type,
+            depth: depthLevel,
+            parent: item.parent ?? null,
+            isRoot: (depthLevel === 0 && item.url === rootKey),
+            isStub: false
+          });
+
+          const hasParent = !!(item.parent && String(item.parent).trim());
+          const parentUrl = hasParent ? String(item.parent) : rootKey;
+
+          const parentNode = (parentUrl === rootKey)
+            ? nodesById.get(rootId)
+            : upsertNode({
+                url: parentUrl,
+                probability: 0,
+                reason: "",
+                description: "",
+                site_name: "",
+                threat_type: "",
+                depth: Math.max(0, depthLevel - 1),
+                parent: null,
+                isRoot: false,
+                isStub: true
+              });
+
+          addEdge(parentNode.id, child.id, (!hasParent && depthLevel >= 2), hasParent ? "parent" : "fallback", depthLevel);
+
+          // extracted links (childs)
+          if (Array.isArray(item.childs)){
+            for (const c of item.childs){
+              if (!c || !c.url) continue;
+              const cn = upsertNode({
+                url: c.url,
+                probability: c.probability,
+                reason: "",
+                description: "",
+                site_name: "",
+                threat_type: "",
+                depth: depthLevel + 1,
+                parent: child.url,
+                isRoot: false,
+                isStub: true
+              });
+              addEdge(child.id, cn.id, true, "extracted", depthLevel + 1);
+            }
+          }
+        }
+      }
+
+      // degree
+      const nodes = Array.from(nodesById.values());
+      const deg = new Map(nodes.map(n => [n.id, 0]));
+      for (const e of links){
+        deg.set(e.source, (deg.get(e.source) || 0) + 1);
+        deg.set(e.target, (deg.get(e.target) || 0) + 1);
+      }
+      nodes.forEach(n => n.degree = deg.get(n.id) || 0);
+
+      return { nodes, links, rootId };
+    }
+
+    /* -----------------------------
+      6) D3 그래프 렌더 (before.html의 force + drag + zoom 핵심 유지)
+      - zoom: d3-zoom 개념 :contentReference[oaicite:6]{index=6}
+      - drag: d3-drag 개념 :contentReference[oaicite:7]{index=7}
+    ----------------------------- */
+    function renderGraph(graph, onNodeClick){
+      const wrap = document.getElementById("graphWrap");
+      const svgEl = document.getElementById("graphSvg");
+      const tooltip = document.getElementById("tooltip");
+      const zoomInBtn = document.getElementById("graphZoomIn");
+      const zoomOutBtn = document.getElementById("graphZoomOut");
+      const resetBtn = document.getElementById("graphReset");
+      const isTouchDevice = window.matchMedia("(pointer: coarse)").matches || ("ontouchstart" in window);
+
+      // clear
+      d3.select(svgEl).selectAll("*").remove();
+
+      const rect = wrap.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+
+      const svg = d3.select(svgEl)
+        .attr("viewBox", `0 0 ${width} ${height}`)
+        .style("cursor", isTouchDevice ? "default" : "grab");
+
+      const defs = svg.append("defs");
+
+      defs.append("marker")
+        .attr("id","arrow")
+        .attr("viewBox","0 -5 10 10")
+        .attr("refX", 18)
+        .attr("refY", 0)
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 6)
+        .attr("orient","auto")
+        .append("path")
+          .attr("d","M0,-5L10,0L0,5")
+          .attr("fill","#a7b1bd");
+
+      const gMain = svg.append("g");
+
+      const zoom = d3.zoom()
+        .scaleExtent([0.25, 3])
+        .on("zoom", (event) => gMain.attr("transform", event.transform));
+
+      svg.call(zoom);
+      svg.on("dblclick.zoom", null);
+
+      function nodeRadius(n){
+        const base = n.isRoot ? 36 : 26;
+        const extra = Math.min(14, (n.degree || 0) * 1.5);
+        return base + extra;
+      }
+
+      function fitGraph(duration = 220){
+        if (!graph.nodes.length || width <= 0 || height <= 0) return;
+        const xs = graph.nodes.map((n) => Number.isFinite(n.x) ? n.x : width / 2);
+        const ys = graph.nodes.map((n) => Number.isFinite(n.y) ? n.y : height / 2);
+        const minX = Math.min(...xs) - 80;
+        const maxX = Math.max(...xs) + 80;
+        const minY = Math.min(...ys) - 80;
+        const maxY = Math.max(...ys) + 80;
+        const boxW = Math.max(120, maxX - minX);
+        const boxH = Math.max(120, maxY - minY);
+        const scale = Math.max(0.25, Math.min(3, 0.92 / Math.max(boxW / width, boxH / height)));
+        const tx = width / 2 - scale * ((minX + maxX) / 2);
+        const ty = height / 2 - scale * ((minY + maxY) / 2);
+        const transform = d3.zoomIdentity.translate(tx, ty).scale(scale);
+        if (duration > 0) {
+          svg.transition().duration(duration).call(zoom.transform, transform);
+        } else {
+          svg.call(zoom.transform, transform);
+        }
+      }
+
+      function zoomBy(factor){
+        svg.transition().duration(180).call(zoom.scaleBy, factor);
+      }
+
+      if (zoomInBtn) zoomInBtn.onclick = () => zoomBy(1.2);
+      if (zoomOutBtn) zoomOutBtn.onclick = () => zoomBy(0.82);
+      if (resetBtn) resetBtn.onclick = () => fitGraph(220);
+
+      // links
+      const linkSel = gMain.append("g")
+        .attr("stroke", "#9aa4af")
+        .attr("stroke-opacity", 0.55)
+        .selectAll("line")
+        .data(graph.links)
+        .join("line")
+          .attr("stroke-width", d => d.dashed ? 1.2 : 1.6)
+          .attr("stroke-dasharray", d => d.dashed ? "4,4" : null)
+          .attr("marker-end","url(#arrow)");
+
+      // nodes
+      const nodeSel = gMain.append("g")
+        .selectAll("g")
+        .data(graph.nodes)
+        .join("g")
+          .attr("class", "graph-node")
+          .style("cursor", "pointer");
+
+      function statusFromProb(n){
+        return probabilityToStatus(n.probability);
+      }
+
+      nodeSel.append("circle")
+        .attr("class", "node-outer")
+        .attr("r", d => nodeRadius(d))
+        .attr("fill", "#0d141c")
+        .attr("stroke", d => {
+          const st = statusFromProb(d);
+          if (st.key === "safe") return "var(--safe-text)";
+          if (st.key === "warn") return "var(--warn-text)";
+          return "var(--risk-text)";
+        })
+        .attr("stroke-width", d => d.isRoot ? 4.5 : 3.5);
+
+      nodeSel.append("circle")
+        .attr("class", "node-inner")
+        .attr("r", d => Math.max(0, nodeRadius(d) - 8))
+        .attr("fill", "#0b1118")
+        .attr("stroke", "#1b2a38")
+        .attr("stroke-width", 1);
+
+      // 내부 텍스트(아이콘 + probability + links)
+      nodeSel.append("text")
+        .attr("class", "node-metrics")
+        .attr("text-anchor","middle")
+        .attr("dominant-baseline","central")
+        .attr("fill","#cfd7df")
+        .style("font-size","11px")
+        .style("font-weight","600")
+        .each(function(d){
+          const t = d3.select(this);
+          const st = statusFromProb(d);
+          const icon = (st.key === "safe") ? "✅" : (st.key === "warn" ? "⚠️" : "🚨");
+
+          t.append("tspan").attr("x",0).attr("dy","-10").text(icon);
+          t.append("tspan").attr("x",0).attr("dy","16").text(`${Math.round(d.probability)}`);
+          t.append("tspan")
+            .attr("x",0).attr("dy","14")
+            .style("font-size","10px")
+            .style("font-weight","500")
+            .attr("fill","#9aa4af")
+            .text(`${d.degree || 0} links`);
+        });
+
+      nodeSel.append("text")
+        .attr("class", "node-caption")
+        .attr("text-anchor","middle")
+        .attr("y", d => nodeRadius(d) + 16)
+        .attr("fill","#9aa4af")
+        .style("font-size","11px")
+        .text(d => d.isRoot ? "root" : shortenUrl(d.url).slice(0, 22));
+
+      function applyNodeSelection(selectedId){
+        const active = (id) => id === selectedId;
+        nodeSel.classed("is-active", d => active(d.id));
+        nodeSel.select("circle.node-outer")
+          .attr("stroke-width", d => active(d.id) ? (d.isRoot ? 6.2 : 5.2) : (d.isRoot ? 4.5 : 3.5))
+          .attr("filter", d => active(d.id) ? "drop-shadow(0 0 10px rgba(83, 163, 255, 0.72))" : null);
+        nodeSel.select("circle.node-inner")
+          .attr("stroke-width", d => active(d.id) ? 1.8 : 1)
+          .attr("stroke", d => active(d.id) ? "#6fb7ff" : "#1b2a38");
+        nodeSel.select("text.node-caption")
+          .attr("fill", d => active(d.id) ? "#dce9f8" : "#9aa4af")
+          .style("font-weight", d => active(d.id) ? "700" : "500");
+      }
+
+      // tooltip
+      function showTooltip(e, d){
+        if (isTouchDevice) return;
+        tooltip.style.display = "block";
+        const st = statusFromProb(d);
+        const riskText = st.text;
+
+        tooltip.innerHTML = `
+          <div class="t-title">${escapeText(shortenUrl(d.url))}</div>
+          <div class="t-sub">${escapeText(d.url)}</div>
+          ${d.description ? `<div class="t-sub">${escapeText(String(d.description))}</div>` : ``}
+          <div class="t-sub">위험도: ${escapeText(riskText)} (${escapeText(String(Math.round(d.probability)))}) · Links: ${escapeText(String(d.degree || 0))} · Depth: ${escapeText(String(d.depth || 0))}</div>
+        `;
+        moveTooltip(e);
+      }
+      function moveTooltip(e){
+        const pad = 14;
+        const r = wrap.getBoundingClientRect();
+        tooltip.style.left = (e.clientX - r.left + pad) + "px";
+        tooltip.style.top  = (e.clientY - r.top  + pad) + "px";
+      }
+      function hideTooltip(){ tooltip.style.display = "none"; }
+
+      // interactions
+      nodeSel.on("click", (e,d) => {
+        e.stopPropagation();
+        applyNodeSelection(d.id);
+        onNodeClick?.(d);
+      });
+
+      if (!isTouchDevice){
+        nodeSel
+          .on("mouseenter", (e,d) => showTooltip(e,d))
+          .on("mousemove", (e) => moveTooltip(e))
+          .on("mouseleave", () => hideTooltip());
+      }
+
+      const sim = d3.forceSimulation(graph.nodes)
+        .force("link", d3.forceLink(graph.links)
+          .id(d => d.id)
+          .distance(d => (d.kind === "extracted") ? (isTouchDevice ? 220 : 240) : (d.dashed ? 210 : 160))
+          .strength(d => (d.kind === "extracted") ? 0.55 : 0.9)
+        )
+        .force("charge", d3.forceManyBody().strength(isTouchDevice ? -560 : -700))
+        .force("collide", d3.forceCollide().radius(d => nodeRadius(d) + 6))
+        .force("center", d3.forceCenter(width/2, height/2))
+        .force("radial", d3.forceRadial(d => {
+          if (d.isRoot) return 0;
+          const lvl = Math.max(1, Number(d.depth || 1));
+          return 120 + (lvl - 1) * 160;
+        }, width/2, height/2).strength(isTouchDevice ? 0.26 : 0.22))
+        .on("tick", () => {
+          linkSel
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+          nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+      if (!isTouchDevice){
+        const drag = d3.drag()
+          .on("start", (event, d) => {
+            if (!event.active) sim.alphaTarget(0.25).restart();
+            d.fx = d.x; d.fy = d.y;
+          })
+          .on("drag", (event, d) => {
+            d.fx = event.x; d.fy = event.y;
+          })
+          .on("end", (event, d) => {
+            if (!event.active) sim.alphaTarget(0);
+            d.fx = null; d.fy = null;
+          });
+        nodeSel.call(drag);
+      }
+
+      svg.on("click", () => hideTooltip());
+
+      applyNodeSelection(graph.rootId);
+
+      setTimeout(() => fitGraph(isTouchDevice ? 260 : 180), isTouchDevice ? 800 : 650);
+      sim.on("end", () => {
+        if (isTouchDevice) fitGraph(220);
+      });
+    }
+
+    /* -----------------------------
+      7) 페이지 초기화: Django에서 주입된 JSON로 렌더링
+      - json_script 사용 권장 :contentReference[oaicite:8]{index=8}
+    ----------------------------- */
+    function readJsonScript(id){
+      const el = document.getElementById(id);
+      if (!el) return null;
+      try { return JSON.parse(el.textContent); } catch { return null; }
+    }
+
+    const inputPayload = readJsonScript("input-payload") || {};
+    const apiReportRaw = readJsonScript("report-data");
+    let screenshotUrl = readJsonScript("screenshot-url");
+    let isProcessing = !!readJsonScript("is-processing");
+    let currentJobStatus = readJsonScript("job-status");
+    let reportReady = !!apiReportRaw;
+    let screenshotReady = !!screenshotUrl;
+    let latestError = null;
+
+    const statusBanner = document.getElementById("status-banner");
+    const statusSub = document.getElementById("status-sub");
+    const graphContainer = document.getElementById("graphContainer");
+    const fullscreenBtn = document.getElementById("graphFullscreen");
+
+    const STATUS_LABELS = {
+      SCANNING: "URL 분석 중",
+      PENDING: "리포트 생성 대기",
+      STARTED: "리포트 생성 중",
+      SUCCESS: "완료",
+      FAILURE: "실패",
+    };
+
+    function isGraphFullscreen(){
+      return document.fullscreenElement === graphContainer;
+    }
+
+    async function toggleGraphFullscreen(){
+      if (!graphContainer || !fullscreenBtn) return;
+      try{
+        if (isGraphFullscreen()){
+          await document.exitFullscreen();
+        } else if (graphContainer.requestFullscreen){
+          await graphContainer.requestFullscreen();
+        }
+      }catch{
+        return;
+      }
+    }
+
+    if (fullscreenBtn){
+      fullscreenBtn.addEventListener("click", toggleGraphFullscreen);
+    }
+
+    document.addEventListener("fullscreenchange", () => {
+      if (!fullscreenBtn || !graphContainer) return;
+      fullscreenBtn.textContent = isGraphFullscreen() ? "⤢" : "⛶";
+      fullscreenBtn.setAttribute(
+        "aria-label",
+        isGraphFullscreen() ? "전체 화면 종료" : "그래프 전체 화면"
+      );
+    });
+
+    function updateStatusBanner(){
+      if (!statusBanner) return;
+      const show = !!isProcessing && !(reportReady && screenshotReady);
+      statusBanner.classList.toggle("is-visible", show);
+      if (statusSub){
+        let label = STATUS_LABELS[currentJobStatus] || "분석 중";
+        if (!reportReady && !currentJobStatus){
+          label = "URL 분석 준비 중";
+        }
+        if (reportReady && !screenshotReady){
+          label = "미리보기 생성 중";
+        }
+        if (reportReady && screenshotReady){
+          label = "완료";
+        }
+        statusSub.textContent = `분석 상태: ${label}`;
+      }
+    }
+
+    function setSectionLoading(sectionKey, loading){
+      const card = document.querySelector(`[data-section="${sectionKey}"]`);
+      if (!card) return;
+      card.classList.toggle("is-loading", !!loading);
+    }
+
+    function updateLoadingStates(){
+      const processing = !!isProcessing;
+      setSectionLoading("risk", processing && !reportReady);
+      setSectionLoading("detail", processing && !reportReady);
+      setSectionLoading("preview", processing && !screenshotReady);
+      if (graphContainer){
+        graphContainer.classList.toggle("is-loading", processing && !reportReady);
+      }
+      updateStatusBanner();
+    }
+
+    function renderScreenshot(){
+      const img = document.getElementById("screenshot-img");
+      const empty = document.getElementById("screenshot-empty");
+      if (!img || !empty) return;
+      if (screenshotReady && screenshotUrl){
+        img.src = screenshotUrl;
+        img.style.display = "block";
+        empty.style.display = "none";
+      } else {
+        img.removeAttribute("src");
+        img.style.display = "none";
+        empty.style.display = "block";
+      }
+    }
+
+    const previewZoomBtn = document.getElementById("preview-zoom-btn");
+    const previewModal = document.getElementById("preview-modal");
+    const previewModalImage = document.getElementById("preview-modal-image");
+    const previewModalClose = document.getElementById("preview-modal-close");
+    const previewImage = document.getElementById("screenshot-img");
+
+    function openPreviewModal(){
+      if (!previewModal || !previewModalImage) return;
+      const img = document.getElementById("screenshot-img");
+      const src = screenshotUrl || (img ? img.src : "");
+      if (!src) return;
+      previewModalImage.src = src;
+      previewModal.classList.add("is-open");
+    }
+
+    function closePreviewModal(){
+      if (!previewModal || !previewModalImage) return;
+      previewModal.classList.remove("is-open");
+      previewModalImage.removeAttribute("src");
+    }
+
+    if (previewZoomBtn){
+      previewZoomBtn.addEventListener("click", openPreviewModal);
+    }
+
+    if (previewImage){
+      previewImage.addEventListener("click", openPreviewModal);
+    }
+
+    if (previewModalClose){
+      previewModalClose.addEventListener("click", closePreviewModal);
+    }
+
+    if (previewModal){
+      previewModal.addEventListener("click", (event) => {
+        if (event.target === previewModal){
+          closePreviewModal();
+        }
+      });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape"){
+        closePreviewModal();
+      }
+    });
+
+    function renderFailureState(lastError){
+      latestError = lastError || latestError || "원인 정보를 확인할 수 없습니다.";
+      isProcessing = false;
+      currentJobStatus = "FAILURE";
+      updateLoadingStates();
+
+      const safeError = escapeText(latestError);
+      const retryMsg = "분석 작업이 실패했습니다. 잠시 후 다시 시도해주세요.";
+      updateTopUI({
+        url: inputPayload.url || "",
+        site_name: inputPayload.site_name || "",
+        probability: 0,
+        threatLabelText: "분석 실패",
+        threatLabelKey: "risk",
+        reasonHtml: `<div><b>${retryMsg}</b></div><div style="margin-top:8px;color:#fca5a5;">${safeError}</div>`,
+      });
+    }
+
+    function connectStatusSocket(){
+      if (!inputPayload.url || !isProcessing || (reportReady && screenshotReady)) return;
+      const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+      const socket = new WebSocket(`${scheme}://${window.location.host}/ws/reports/`);
+      let pingTimer = null;
+
+      const requestStatus = () => {
+        if (socket.readyState === WebSocket.OPEN){
+          socket.send(JSON.stringify({ type: "status", url: inputPayload.url }));
+        }
+      };
+
+      socket.addEventListener("open", () => {
+        requestStatus();
+        pingTimer = setInterval(requestStatus, 2500);
+      });
+
+      socket.addEventListener("message", (event) => {
+        try{
+          const data = JSON.parse(event.data);
+          if (data.type !== "status") return;
+          if (data.url && data.url !== inputPayload.url) return;
+
+          if (data.job_status){
+            currentJobStatus = data.job_status;
+            updateStatusBanner();
+          }
+          if (data.last_error){
+            latestError = data.last_error;
+          }
+          if (data.job_status === "FAILURE"){
+            renderFailureState(data.last_error);
+            socket.close();
+            return;
+          }
+
+          const reportReadyNow = !!(data.report_ready ?? data.is_processed);
+          const screenshotReadyNow = !!(data.screenshot_ready || data.screenshot_url);
+          const reportChanged = reportReadyNow && !reportReady;
+          const screenshotChanged = screenshotReadyNow && !screenshotReady;
+          reportReady = reportReady || reportReadyNow;
+          screenshotReady = screenshotReady || screenshotReadyNow;
+          if (data.screenshot_url){
+            screenshotUrl = data.screenshot_url;
+          }
+          if (reportChanged){
+            setTimeout(() => window.location.reload(), 600);
+            socket.close();
+            return;
+          }
+          if (screenshotChanged){
+            renderScreenshot();
+            updateLoadingStates();
+          }
+        }catch{}
+      });
+
+      socket.addEventListener("close", () => {
+        if (pingTimer) clearInterval(pingTimer);
+        if (isProcessing && currentJobStatus !== "FAILURE" && !(reportReady && screenshotReady)){
+          setTimeout(connectStatusSocket, 1500);
+        }
+      });
+    }
+
+    updateLoadingStates();
+    renderScreenshot();
+    if (!(reportReady && screenshotReady)){
+      connectStatusSocket();
+    }
+
+    if (!reportReady){
+      if (currentJobStatus === "FAILURE"){
+        renderFailureState(latestError);
+      } else {
+        const st = threatScoreToStatus(Number(inputPayload.threat_score ?? 2));
+        setBadge(st.key);
+        updateTopUI({
+          url: inputPayload.url || "",
+          site_name: inputPayload.site_name || "",
+          probability: 0,
+          threatLabelText: `${st.text}`,
+          threatLabelKey: st.key,
+          reasonHtml: escapeText("분석 결과를 불러오는 중입니다. 잠시만 기다려주세요...")
+        });
+      }
+    } else {
+      const report = normalizeReport(apiReportRaw);
+      const rootStatus = probabilityToStatus(report.probability);
+      setBadge(rootStatus.key);
+
+      const headerReasonParts = [];
+      if (report.threat_type) headerReasonParts.push(`<div><b>위협 유형:</b> ${escapeText(report.threat_type)}</div>`);
+      if (report.description) headerReasonParts.push(`<div><b>설명:</b> ${escapeText(report.description)}</div>`);
+      const mergedReasonHtml = `
+        ${headerReasonParts.length ? `<div style="margin-bottom:10px;">${headerReasonParts.join("")}</div>` : ``}
+        <div>${renderReasonAsSafeHtml(report.reason)}</div>
+      `;
+
+      updateTopUI({
+        url: report.url,
+        site_name: report.site_name || inputPayload.site_name || "",
+        probability: report.probability,
+        threatLabelText: `${rootStatus.text}`,
+        threatLabelKey: rootStatus.key,
+        reasonHtml: mergedReasonHtml
+      });
+
+      const graph = buildGraph(report);
+
+      function onNodeClick(node){
+        const isRoot = (node.id === graph.rootId);
+        const st = isRoot ? probabilityToStatus(report.probability) : probabilityToStatus(node.probability);
+
+        setBadge(st.key);
+
+        const parts = [];
+        if (node.threat_type) parts.push(`<div><b>위협 유형:</b> ${escapeText(node.threat_type)}</div>`);
+        if (node.description) parts.push(`<div><b>설명:</b> ${escapeText(node.description)}</div>`);
+
+        const reason = node.reason ? renderReasonAsSafeHtml(node.reason) : escapeText("분석 내용 없음");
+        const html = `
+          ${parts.length ? `<div style="margin-bottom:10px;">${parts.join("")}</div>` : ``}
+          <div>${reason}</div>
+        `;
+
+        updateTopUI({
+          url: node.url || "",
+          site_name: node.site_name || (isRoot ? (report.site_name || inputPayload.site_name || "") : ""),
+          probability: Number(node.probability ?? 0),
+          threatLabelText: `${st.text}`,
+          threatLabelKey: st.key,
+          reasonHtml: html
+        });
+
+        const contentEl = document.querySelector(".content");
+        if (contentEl && typeof contentEl.scrollTo === "function") {
+          contentEl.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function doRender(){
+        renderGraph(graph, onNodeClick);
+      }
+
+      doRender();
+
+      let resizeTimer = null;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => doRender(), 120);
+      });
+    }
+  </script>
+</body>
+</html>

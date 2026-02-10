@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>See QR 스캐너 문의 게시판</title>
+    {% load static %}
+    <!-- 아이콘 라이브러리 (Font Awesome) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* CSS 변수 정의 */
+        :root {
+            --primary-blue: #4d6ef3;
+            --border-color: #eee;
+            --safe-green: #4caf50;
+            --danger-red: #d32f2f;
+            --modal-bg: rgba(0, 0, 0, 0.5);
+            --text-gray: #888;
+        }
+
+        /* 초기화 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #ffffff;
+            display: block;
+            min-height: 100vh;
+        }
+
+        /* 모바일 컨테이너 레이아웃 */
+        .app-container {
+            width: 100%;
+            max-width: none;
+            min-height: 100vh;
+            background-color: white;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: none;
+            border-radius: 0;
+        }
+
+        /* 콘텐츠 영역 */
+        .content {
+            flex: 1;
+            padding: 36px 20px 24px;
+            overflow-y: auto;
+        }
+
+        /* 게시판 헤더 안내 */
+        .page-header {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .page-header .logo-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            margin: 0 auto 12px;
+            display: block;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+        }
+
+        .page-header h2 {
+            font-size: 24px;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            letter-spacing: -1px;
+        }
+
+        .page-header p {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        /* 문의 폼 스타일 */
+        .inquiry-form {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        /* 필수/선택 마크 */
+        .required-mark { color: var(--danger-red); margin-left: 3px; }
+        .optional-mark { color: #999; font-weight: normal; font-size: 11px; margin-left: 5px; }
+
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .safety-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            border: 1px solid #ddd;
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .safety-tag-safe {
+            color: #166534;
+            border-color: rgba(74, 222, 128, 0.6);
+            background: rgba(74, 222, 128, 0.15);
+        }
+
+        .safety-tag-warn {
+            color: #92400e;
+            border-color: rgba(251, 191, 36, 0.6);
+            background: rgba(251, 191, 36, 0.15);
+        }
+
+        .safety-tag-risk {
+            color: #b91c1c;
+            border-color: rgba(248, 113, 113, 0.6);
+            background: rgba(248, 113, 113, 0.15);
+        }
+
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            border-color: var(--primary-blue);
+        }
+
+        /* 등록 버튼 */
+        .btn-submit {
+            width: 100%;
+            background-color: var(--primary-blue);
+            color: white;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:active {
+            background-color: #3b5bdb;
+        }
+
+        /* 하단 안내 문구 영역 */
+        .footer-info {
+            padding: 15px 5px;
+            border-top: 1px solid var(--border-color);
+            margin-top: 10px;
+        }
+
+        .footer-info p {
+            font-size: 12px;
+            color: var(--text-gray);
+            line-height: 1.6;
+            word-break: keep-all;
+        }
+
+        /* 커스텀 모달 스타일 */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--modal-bg);
+            display: none; /* 기본 숨김 */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-overlay.is-visible {
+            display: flex;
+        }
+
+        .modal-box {
+            background-color: white;
+            width: 100%;
+            max-width: 300px;
+            padding: 30px 20px;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-icon {
+            font-size: 40px;
+            color: var(--safe-green);
+            margin-bottom: 15px;
+        }
+
+        .modal-text {
+            font-size: 17px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+        }
+
+        .modal-btn {
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* 하단 핸들바 */
+        .bottom-area { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- 알림창 모달 -->
+        <div id="successModal" class="modal-overlay {% if success %}is-visible{% endif %}">
+            <div class="modal-box">
+                <div class="modal-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="modal-text">문의가 완료되었습니다.</div>
+                <button class="modal-btn" onclick="closeModal()">확인</button>
+            </div>
+        </div>
+        
+        <main class="content">
+            <div class="page-header">
+                <img src="{% static 'logo.png' %}" alt="See QR" class="logo-icon">
+                <h2>See QR 스캐너 문의 게시판</h2>
+                <p>오탐지 신고 및 일반 문의를 남겨주시면 빠르게 확인하겠습니다.</p>
+            </div>
+
+            {% if error %}
+            <div class="footer-info" style="border: 1px solid #fca5a5; background: #fef2f2; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
+                <p style="color:#b91c1c; font-weight:600;">{{ error }}</p>
+            </div>
+            {% endif %}
+
+            <div class="inquiry-form">
+                <form id="inquiryForm" method="post" action="/api/inquire/">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label>대상 URL<span class="required-mark">*</span></label>
+                        <input type="text" id="targetUrl" name="url" placeholder="URL을 붙여넣거나 입력해주세요" value="{{ target_url|default:'' }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>AI 분석 위험도</label>
+                        <span class="safety-tag
+                            {% if ai_threat_label == '안전' %}safety-tag-safe
+                            {% elif ai_threat_label == '주의' %}safety-tag-warn
+                            {% elif ai_threat_label == '위험' %}safety-tag-risk
+                            {% endif %}">
+                            {{ ai_threat_label|default:'알 수 없음' }}
+                        </span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>실제 위험도<span class="required-mark">*</span></label>
+                        <select id="actualThreatSelect" name="actual_threat" required>
+                            <option value="" disabled selected>실제 위험도를 선택해주세요</option>
+                            <option value="safe">안전</option>
+                            <option value="warn">주의</option>
+                            <option value="risk">위험</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>상세 내용<span class="optional-mark">(선택)</span></label>
+                        <textarea id="textContent" name="details" rows="6" placeholder="내용을 입력해주세요."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-submit">문의하기</button>
+                </form>
+            </div>
+
+            <!-- 하단 안내 문구 수정 -->
+            <div class="footer-info">
+                <p>접수된 문의는 담당자가 검토 후 서비스 개선에 반영합니다.</p>
+            </div>
+        </main>
+
+        <div class="bottom-area">
+            <div class="bottom-handle"></div>
+        </div>
+    </div>
+
+    <script>
+        function closeModal() {
+            const modal = document.getElementById('successModal');
+            const form = document.getElementById('inquiryForm');
+            
+            modal.style.display = 'none';
+            form.reset();
+        }
+
+        {% if success %}
+        const modal = document.getElementById('successModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+        {% endif %}
+    </script>
+
+</body>
+</html>

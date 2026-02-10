@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>See QR 스캐너 관리자 페이지 - 문의 상세</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .custom-shadow {
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col">
+    <main class="flex-1 overflow-y-auto p-8">
+        <div class="max-w-5xl mx-auto">
+            <div class="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800 tracking-tight">문의 상세 및 수정</h1>
+                    <p class="text-gray-500 mt-2">ScannedURL 및 GeneratedReport 데이터를 수정할 수 있습니다.</p>
+                </div>
+                <a href="/api/dashboard/" class="text-sm text-gray-500 hover:text-gray-700">목록으로</a>
+            </div>
+
+            {% if error %}
+            <div class="bg-white rounded-2xl custom-shadow border border-red-100 p-5 mb-6">
+                <div class="text-red-600 font-semibold">{{ error }}</div>
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div class="bg-white rounded-2xl custom-shadow border border-emerald-100 p-5 mb-6">
+                <div class="text-emerald-600 font-semibold">수정 내용이 저장되었습니다.</div>
+            </div>
+            {% endif %}
+
+            <div class="bg-white rounded-2xl custom-shadow border border-gray-50 p-6 mb-6">
+                <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                    <div>URL: <span class="font-semibold text-gray-800">{{ inquiry.url }}</span></div>
+                    <div>AI 분석 위험도: <span class="font-semibold text-gray-800">{{ ai_threat_label }}</span></div>
+                    <div>실제 위험도: <span class="font-semibold text-gray-800">{{ actual_threat_label }}</span></div>
+                    <div>접수일: <span class="font-semibold text-gray-800">{{ inquiry.created_at|date:"Y.m.d H:i" }}</span></div>
+                </div>
+            </div>
+
+            <form method="post" action="/api/inquire/{{ inquiry.id }}/edit/" class="space-y-6">
+                {% csrf_token %}
+
+                <div class="bg-white rounded-2xl custom-shadow border border-gray-50 p-6">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">ScannedURL 수정</h2>
+                    {% if scanned %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">사이트명</label>
+                            <input name="scanned_site_name" value="{{ scanned.site_name|default:'' }}" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">위협 유형</label>
+                            <input name="scanned_threat_type" value="{{ scanned.threat_type|default:'' }}" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-sm font-semibold text-gray-700">설명</label>
+                            <textarea name="scanned_description" rows="4" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm">{{ scanned.description|default:'' }}</textarea>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">위험도 점수</label>
+                            <input name="scanned_threat_score" value="{{ scanned.threat_score|default:'' }}" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-sm text-gray-400">ScannedURL 데이터가 없습니다.</div>
+                    {% endif %}
+                </div>
+
+                <div class="bg-white rounded-2xl custom-shadow border border-gray-50 p-6">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">GeneratedReport 수정</h2>
+                    {% if report %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">사이트명</label>
+                            <input name="report_site_name" value="{{ report.site_name|default:'' }}" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">위협 유형</label>
+                            <input name="report_threat_type" value="{{ report.threat_type|default:'' }}" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-sm font-semibold text-gray-700">설명</label>
+                            <textarea name="report_description" rows="4" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm">{{ report.description|default:'' }}</textarea>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">확률</label>
+                            <input name="report_probability" value="{{ report.probability|default:'' }}" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-sm font-semibold text-gray-700">사유</label>
+                            <textarea name="report_reason" rows="4" class="mt-2 w-full border border-gray-200 rounded-xl p-3 text-sm">{{ report.reason|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-sm text-gray-400">GeneratedReport 데이터가 없습니다.</div>
+                    {% endif %}
+                </div>
+
+                <div class="flex items-center justify-end gap-3">
+                    <a href="/api/dashboard/" class="px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-600">취소</a>
+                    <button type="submit" class="px-6 py-3 rounded-xl bg-yellow-400 text-white font-bold text-sm shadow-md shadow-yellow-400/20">수정 저장</button>
+                </div>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
