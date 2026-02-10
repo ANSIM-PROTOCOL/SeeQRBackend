@@ -1,10 +1,12 @@
 
-<div>
-    <center>
-        <img src="./backend/api/static/logo.png"/>
-        <h1>See QR 스캐너</h1>
-        <h3>Python Backend Server</h3>
-    </center>
+<div align="center">
+    <img src="./backend/api/static/logo.png"/>
+    <h1>See QR 스캐너</h1>
+    <h3>Python Backend Server</h3>
+    <p>
+        TEAM 안심 프로토콜 <br/>
+        DACON 피싱·스캠 예방을 위한 서비스 개발 경진대회 예선 산출물
+    </p>
 </div>
 
 
