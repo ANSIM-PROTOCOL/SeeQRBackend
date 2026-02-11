@@ -7,6 +7,10 @@
         TEAM 안심 프로토콜 <br/>
         DACON 피싱·스캠 예방을 위한 서비스 개발 경진대회 예선 산출물
     </p>
+    <h2>YouTube 시연 영상</h2>
+    <a href="https://youtu.be/KX6N7Yd4niA">
+        <img src="http://img.youtube.com/vi/KX6N7Yd4niA/0.jpg"/>
+    </a>
 </div>
 
 
